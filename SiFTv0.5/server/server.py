@@ -5,6 +5,9 @@ from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
 from siftprotocols.siftlogin import SiFT_LOGIN, SiFT_LOGIN_Error
 from siftprotocols.siftcmd import SiFT_CMD, SiFT_CMD_Error
 
+# TODO figure out sqn!!
+# TODO figure out mtp error handling?
+
 class Server:
     def __init__(self):
         # ------------------------ CONFIG -----------------------------

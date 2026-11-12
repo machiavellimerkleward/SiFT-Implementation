@@ -1,6 +1,8 @@
 #python3
 
 import socket
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 
 class SiFT_MTP_Error(Exception):
 
@@ -8,7 +10,7 @@ class SiFT_MTP_Error(Exception):
         self.err_msg = err_msg
 
 class SiFT_MTP:
-	def __init__(self, peer_socket):
+	def __init__(self, peer_socket, sqn_s, sqn_r):
 
 		self.DEBUG = True
 		# --------- CONSTANTS ------------
@@ -24,6 +26,8 @@ class SiFT_MTP:
 		self.size_msg_hdr_sqn = 2
 		self.size_msg_hdr_rnd = 6
 		self.size_msg_hdr_rsv = 2
+		self.sqn_s = sqn_s
+		self.sqn_r = sqn_r
 		#----------------
 
 		self.type_login_req =    b'\x00\x00'
@@ -43,6 +47,11 @@ class SiFT_MTP:
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 
+	def encrypt():
+		return 5
+
+	def decrypt():
+		return 5
 
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):
@@ -78,6 +87,7 @@ class SiFT_MTP:
 
 
 	# receives and parses message, returns msg_type and msg_payload
+	# TODO needs to decrypt and verify MAC using the provided nonce (in header) and MAC (final bytes)
 	def receive_msg(self):
 
 		try:
@@ -99,9 +109,14 @@ class SiFT_MTP:
 		msg_len = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')
 
 		try:
+			# TODO this size is incorrect, remove MAC bytes at the end as well
 			msg_body = self.receive_bytes(msg_len - self.size_msg_hdr)
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to receive message body --> ' + e.err_msg)
+
+		# TODO: extract encrypted message and MAC --> decrypt and verify MAC --> raise error if invalid, keep if valid
+		# nonce is sqn + rdn, 8 bytes
+		# MAC is the last 12 bytes
 
 		# DEBUG 
 		if self.DEBUG:
@@ -133,6 +148,9 @@ class SiFT_MTP:
 		msg_size = self.size_msg_hdr + len(msg_payload)
 		msg_hdr_len = msg_size.to_bytes(self.size_msg_hdr_len, byteorder='big')
 		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len
+		# TODO build msg with MAC and modified header
+		# TODO generate random numbers for rnd
+		# TODO figure out sqn???
 
 		# DEBUG 
 		if self.DEBUG:
@@ -143,9 +161,12 @@ class SiFT_MTP:
 			print('------------------------------------------')
 		# DEBUG 
 
+		# TODO encrypt message before sending
+		# EX: encrypted_msg = encrypt(msg_payload)
 		# try to send
+
 		try:
-			self.send_bytes(msg_hdr + msg_payload)
+			self.send_bytes(msg_hdr + msg_payload) # TODO fix --> send encrypted message instead
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to send message to peer --> ' + e.err_msg)
 

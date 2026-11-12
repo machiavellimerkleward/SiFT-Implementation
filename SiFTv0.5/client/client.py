@@ -14,6 +14,9 @@ server_ip = '127.0.0.1' # localhost
 server_port = 5150
 # --------------------------------
 
+# TODO add mtp error handling?
+# TODO figure out how to communicate sqn values??
+
 class SiFTShell(cmd.Cmd):
     intro = 'Client shell for the SiFT protocol. Type help or ? to list commands.\n'
     prompt = '(sift) '
@@ -206,6 +209,8 @@ if __name__ == '__main__':
     password = getpass.getpass('   Password: ')
     print()
 
+    # TODO add MTP Error handling
+    
     try:
         loginp.handle_login_client(username, password)
     except SiFT_LOGIN_Error as e:
