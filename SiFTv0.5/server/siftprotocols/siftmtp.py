@@ -19,6 +19,13 @@ class SiFT_MTP:
 		self.size_msg_hdr_ver = 2
 		self.size_msg_hdr_typ = 2
 		self.size_msg_hdr_len = 2
+
+		#Jen edits-------
+		self.size_msg_hdr_sqn = 2
+		self.size_msg_hdr_rnd = 6
+		self.size_msg_hdr_rsv = 2
+		#----------------
+
 		self.type_login_req =    b'\x00\x00'
 		self.type_login_res =    b'\x00\x10'
 		self.type_command_req =  b'\x01\x00'
@@ -43,9 +50,15 @@ class SiFT_MTP:
 		parsed_msg_hdr, i = {}, 0
 		parsed_msg_hdr['ver'], i = msg_hdr[i:i+self.size_msg_hdr_ver], i+self.size_msg_hdr_ver 
 		parsed_msg_hdr['typ'], i = msg_hdr[i:i+self.size_msg_hdr_typ], i+self.size_msg_hdr_typ
-		parsed_msg_hdr['len'] = msg_hdr[i:i+self.size_msg_hdr_len]
-		return parsed_msg_hdr
+		parsed_msg_hdr['len'] = msg_hdr[i:i+self.size_msg_hdr_len], i+self.size_msg_hdr_len
 
+		#jenifer edits-------------------
+		parsed_msg_hdr['sqn'], i = msg_hdr[i:i+self.size_msg_hdr_sqn], i+self.size_msg_hdr_sqn
+		parsed_msg_hdr['rnd'], i = msg_hdr[i:i+self.size_msg_hdr_rnd], i+self.size_msg_hdr_rnd
+		parsed_msg_hdr['rsv'] = msg_hdr[i:i+self.size_msg_hdr_rsv]
+		#---------------------------------
+		
+		return parsed_msg_hdr
 
 	# receives n bytes from the peer socket
 	def receive_bytes(self, n):
