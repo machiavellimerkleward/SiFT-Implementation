@@ -10,7 +10,7 @@ class SiFT_MTP_Error(Exception):
         self.err_msg = err_msg
 
 class SiFT_MTP:
-	def __init__(self, peer_socket, sqn_s, sqn_r):
+	def __init__(self, peer_socket, key):
 
 		self.DEBUG = True
 		# --------- CONSTANTS ------------
@@ -26,8 +26,11 @@ class SiFT_MTP:
 		self.size_msg_hdr_sqn = 2
 		self.size_msg_hdr_rnd = 6
 		self.size_msg_hdr_rsv = 2
-		self.sqn_s = sqn_s
-		self.sqn_r = sqn_r
+		self.key = key
+
+		# initialize sqns to zero
+		self.sqn_s = 0
+		self.sqn_r = 0
 		#----------------
 
 		self.type_login_req =    b'\x00\x00'
@@ -47,11 +50,6 @@ class SiFT_MTP:
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 
-	def encrypt():
-		return 5
-
-	def decrypt():
-		return 5
 
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):
@@ -117,6 +115,7 @@ class SiFT_MTP:
 		# TODO: extract encrypted message and MAC --> decrypt and verify MAC --> raise error if invalid, keep if valid
 		# nonce is sqn + rdn, 8 bytes
 		# MAC is the last 12 bytes
+		# msg_body = decrypt(msg_body)
 
 		# DEBUG 
 		if self.DEBUG:
@@ -151,6 +150,8 @@ class SiFT_MTP:
 		# TODO build msg with MAC and modified header
 		# TODO generate random numbers for rnd
 		# TODO figure out sqn???
+		# TODO encrypt message before sending
+		# EX: encrypted_msg = encrypt(msg_payload) via AES
 
 		# DEBUG 
 		if self.DEBUG:
@@ -160,10 +161,6 @@ class SiFT_MTP:
 			print(msg_payload.hex())
 			print('------------------------------------------')
 		# DEBUG 
-
-		# TODO encrypt message before sending
-		# EX: encrypted_msg = encrypt(msg_payload)
-		# try to send
 
 		try:
 			self.send_bytes(msg_hdr + msg_payload) # TODO fix --> send encrypted message instead
