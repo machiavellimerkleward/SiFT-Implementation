@@ -1,8 +1,6 @@
 #python3
 
 import socket
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 
 class SiFT_MTP_Error(Exception):
 
@@ -10,7 +8,7 @@ class SiFT_MTP_Error(Exception):
         self.err_msg = err_msg
 
 class SiFT_MTP:
-	def __init__(self, peer_socket, key):
+	def __init__(self, peer_socket):
 
 		self.DEBUG = True
 		# --------- CONSTANTS ------------
