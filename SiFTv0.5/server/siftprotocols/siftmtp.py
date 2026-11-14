@@ -1,6 +1,7 @@
 #python3
 
 import socket
+from Crypto.Cipher import AES
 
 class SiFT_MTP_Error(Exception):
 
@@ -24,7 +25,8 @@ class SiFT_MTP:
 		self.size_msg_hdr_sqn = 2
 		self.size_msg_hdr_rnd = 6
 		self.size_msg_hdr_rsv = 2
-		self.key = key
+		self.key = b'\x00' * 32
+
 
 		# initialize sqns to zero
 		self.sqn_s = 0
@@ -84,6 +86,13 @@ class SiFT_MTP:
 
 	# receives and parses message, returns msg_type and msg_payload
 	# TODO needs to decrypt and verify MAC using the provided nonce (in header) and MAC (final bytes)
+	#Jen edits ------------------
+	nonce = self.parse_msg_header['sqn'] + self.size_msg_hdr_len['rnd']
+	cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+		
+	#--------------------------
+	
+
 	def receive_msg(self):
 
 		try:
@@ -110,10 +119,18 @@ class SiFT_MTP:
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to receive message body --> ' + e.err_msg)
 
+
+
+		
+
 		# TODO: extract encrypted message and MAC --> decrypt and verify MAC --> raise error if invalid, keep if valid
 		# nonce is sqn + rdn, 8 bytes
 		# MAC is the last 12 bytes
 		# msg_body = decrypt(msg_body)
+
+
+		cipher = AES.new(key, AES.MODE_GCM)
+		
 
 		# DEBUG 
 		if self.DEBUG:
