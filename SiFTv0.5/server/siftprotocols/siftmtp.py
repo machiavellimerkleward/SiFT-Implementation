@@ -89,7 +89,14 @@ class SiFT_MTP:
 	#Jen edits ------------------
 	nonce = self.parse_msg_header['sqn'] + self.size_msg_hdr_len['rnd']
 	cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-		
+
+	try:
+		cipher.update(header)
+		plaintext = cipher.decrypt_and_verify(ciphertext, authtag)
+		print('Plaintext:', plaintext[:16], '...', plaintext[-16:])
+	except (ValueError, KeyError):
+		print("Authentication tag verification or decryption failed.")
+			
 	#--------------------------
 	
 
