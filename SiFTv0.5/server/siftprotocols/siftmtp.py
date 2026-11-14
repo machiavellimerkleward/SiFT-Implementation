@@ -50,6 +50,8 @@ class SiFT_MTP:
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 
+	
+
 
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):
@@ -84,21 +86,7 @@ class SiFT_MTP:
 		return bytes_received
 
 
-	# receives and parses message, returns msg_type and msg_payload
-	# TODO needs to decrypt and verify MAC using the provided nonce (in header) and MAC (final bytes)
-	#Jen edits ------------------
-	nonce = self.parse_msg_header['sqn'] + self.size_msg_hdr_len['rnd']
-	cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
 
-	try:
-		cipher.update(header)
-		plaintext = cipher.decrypt_and_verify(ciphertext, authtag)
-		print('Plaintext:', plaintext[:16], '...', plaintext[-16:])
-	except (ValueError, KeyError):
-		print("Authentication tag verification or decryption failed.")
-			
-	#--------------------------
-	
 
 	def receive_msg(self):
 
@@ -127,7 +115,24 @@ class SiFT_MTP:
 			raise SiFT_MTP_Error('Unable to receive message body --> ' + e.err_msg)
 
 
+		# receives and parses message, returns msg_type and msg_payload
+		# TODO needs to decrypt and verify MAC using the provided nonce (in header) and MAC (final bytes)
+		#Jen edits ------------------
+		encrypted_payload = msg_body[:-12]
+		mac = msg_body[-12:]
+		nonce = self.parse_msg_header['sqn'] + self.parse_msg_header['rnd']
+		cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce)
 
+		try:
+			cipher.update(msg_hdr)
+			plaintext = cipher.decrypt_and_verify(encrypted_payload, mac)
+			print(plaintext)
+		except SiFT_MTP_Error as e:
+			raise SiFT_MTP_Error('Unable to receive message body --> ' + e.err_msg)
+
+				
+		#--------------------------
+	
 		
 
 		# TODO: extract encrypted message and MAC --> decrypt and verify MAC --> raise error if invalid, keep if valid
