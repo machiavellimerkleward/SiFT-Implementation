@@ -18,6 +18,7 @@ class Server:
         self.server_ip = socket.gethostbyname('localhost')
         # self.server_ip = socket.gethostbyname(socket.gethostname())
         self.server_port = 5150
+        
         # -------------------------------------------------------------
         self.server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.server_socket.bind((self.server_ip, self.server_port))
@@ -52,7 +53,7 @@ class Server:
     def handle_client(self, client_socket, addr):
         print('New client on ' + addr[0] + ':' + str(addr[1]))
 
-        mtp = SiFT_MTP(client_socket)
+        mtp = SiFT_MTP(client_socket, self.key)
 
         loginp = SiFT_LOGIN(mtp)
         users = self.load_users(self.server_usersfile)

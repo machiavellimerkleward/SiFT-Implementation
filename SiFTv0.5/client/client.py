@@ -14,7 +14,6 @@ server_ip = '127.0.0.1' # localhost
 server_port = 5150
 # --------------------------------
 
-# TODO send key value to mtp
 
 class SiFTShell(cmd.Cmd):
     intro = 'Client shell for the SiFT protocol. Type help or ? to list commands.\n'
@@ -200,7 +199,8 @@ if __name__ == '__main__':
     else:
         print('Connection to server established on ' + server_ip + ':' + str(server_port))
 
-    mtp = SiFT_MTP(sckt)
+    key = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
+    mtp = SiFT_MTP(sckt,key)
     loginp = SiFT_LOGIN(mtp)
 
     print()
