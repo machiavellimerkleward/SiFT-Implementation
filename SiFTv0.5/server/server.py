@@ -5,7 +5,6 @@ from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
 from siftprotocols.siftlogin import SiFT_LOGIN, SiFT_LOGIN_Error
 from siftprotocols.siftcmd import SiFT_CMD, SiFT_CMD_Error
 
-# TODO send key value to mtp
 
 class Server:
     def __init__(self):
@@ -18,7 +17,7 @@ class Server:
         self.server_ip = socket.gethostbyname('localhost')
         # self.server_ip = socket.gethostbyname(socket.gethostname())
         self.server_port = 5150
-        
+        self.key = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
         # -------------------------------------------------------------
         self.server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         self.server_socket.bind((self.server_ip, self.server_port))
