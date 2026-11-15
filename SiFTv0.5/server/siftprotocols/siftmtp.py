@@ -61,12 +61,12 @@ class SiFT_MTP:
 		parsed_msg_hdr, i = {}, 0
 		parsed_msg_hdr['ver'], i = msg_hdr[i:i+self.size_msg_hdr_ver], i+self.size_msg_hdr_ver 
 		parsed_msg_hdr['typ'], i = msg_hdr[i:i+self.size_msg_hdr_typ], i+self.size_msg_hdr_typ
-		parsed_msg_hdr['len'] = msg_hdr[i:i+self.size_msg_hdr_len], i+self.size_msg_hdr_len
+		parsed_msg_hdr['len'], i = msg_hdr[i:i+self.size_msg_hdr_len], i+self.size_msg_hdr_len
 
 		#jenifer edits-------------------
 		parsed_msg_hdr['sqn'], i = msg_hdr[i:i+self.size_msg_hdr_sqn], i+self.size_msg_hdr_sqn
 		parsed_msg_hdr['rnd'], i = msg_hdr[i:i+self.size_msg_hdr_rnd], i+self.size_msg_hdr_rnd
-		parsed_msg_hdr['rsv'] = msg_hdr[i:i+self.size_msg_hdr_rsv]
+		parsed_msg_hdr['rsv'], i = msg_hdr[i:i+self.size_msg_hdr_rsv]
 		#---------------------------------
 		
 		return parsed_msg_hdr
@@ -108,7 +108,7 @@ class SiFT_MTP:
 		if parsed_msg_hdr['typ'] not in self.msg_types:
 			raise SiFT_MTP_Error('Unknown message type found in message header')
 
-		if parsed_msg_hdr['sqn'] < self.sqn_r.to_bytes(2,"big"):
+		if parsed_msg_hdr['sqn'] < self.sqn_r.to_bytes(self.size_msg_hdr_sqn,"big"):
 			raise SiFT_MTP_Error('Invalid sequence number')
 
 		msg_len = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')
@@ -139,7 +139,8 @@ class SiFT_MTP:
 		if self.DEBUG:
 			print('MTP message received (' + str(msg_len) + '):')
 			print('HDR (' + str(len(msg_hdr)) + '): ' + msg_hdr.hex())
-			print('BDY (' + str(len(msg_body)) + '): ')
+			print('BDY (' + str(len(encrypted_payload)) + '): ')
+			print('MAC (' + str(len(mac)) + '): ')
 			print(msg_body.hex())
 			print('------------------------------------------')
 		# DEBUG 
@@ -165,7 +166,7 @@ class SiFT_MTP:
 		msg_sqn = self.sqn_s
 		msg_rnd = get_random_bytes(self.size_msg_hdr_rnd)
 		
-		nonce = msg_sqn + msg_rnd
+		nonce = msg_sqn.to_bytes(self.size_msg_hdr_sqn,"big") + msg_rnd
 
 		msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac_len
 		msg_hdr_len = msg_size.to_bytes(self.size_msg_hdr_len, byteorder='big')
@@ -173,7 +174,7 @@ class SiFT_MTP:
 		cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=self.size_mac_len)
 
 		# header = 		ver  	   |    typ   |  	 len    |  	sqn   |	  rnd 	|   rsv
-		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + msg_sqn + msg_rnd + self.rsv
+		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + msg_sqn.to_bytes(self.size_msg_hdr_sqn, byteorder="big") + msg_rnd + self.rsv
 		self.sqn_s += 1
 
 		cipher.update(msg_hdr)
@@ -184,6 +185,7 @@ class SiFT_MTP:
 			print('MTP message to send (' + str(msg_size) + '):')
 			print('HDR (' + str(len(msg_hdr)) + '): ' + msg_hdr.hex())
 			print('BDY (' + str(len(msg_payload)) + '): ')
+			print('MAC (' + str(len(authtag)) + '): ')
 			print(msg_payload.hex())
 			print('------------------------------------------')
 		# DEBUG 
