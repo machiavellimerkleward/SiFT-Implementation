@@ -15,7 +15,7 @@ class SiFT_MTP:
 		self.DEBUG = True
 		# --------- CONSTANTS ------------
 		self.version_major = 0
-		self.version_minor = 5
+		self.version_minor = 6
 		self.msg_hdr_ver = b'\x00\x06'
 		self.size_msg_hdr = 16
 		self.size_msg_hdr_ver = 2
@@ -30,9 +30,9 @@ class SiFT_MTP:
 		self.rsv = b'\x00\x00'
 		self.key = key
 
-		# initialize sqns to zero
-		self.sqn_s = 0
-		self.sqn_r = 0
+		# initialize sqns to one
+		self.sqn_s = 1
+		self.sqn_r = 1
 		#----------------
 
 		self.type_login_req =    b'\x00\x00'
@@ -66,7 +66,7 @@ class SiFT_MTP:
 		#jenifer edits-------------------
 		parsed_msg_hdr['sqn'], i = msg_hdr[i:i+self.size_msg_hdr_sqn], i+self.size_msg_hdr_sqn
 		parsed_msg_hdr['rnd'], i = msg_hdr[i:i+self.size_msg_hdr_rnd], i+self.size_msg_hdr_rnd
-		parsed_msg_hdr['rsv'], i = msg_hdr[i:i+self.size_msg_hdr_rsv]
+		parsed_msg_hdr['rsv'] = msg_hdr[i:i+self.size_msg_hdr_rsv]
 		#---------------------------------
 		
 		return parsed_msg_hdr
@@ -92,6 +92,9 @@ class SiFT_MTP:
 	# tries to receive the encrypted message, if valid, incrementing sqn
 	def receive_msg(self):
 
+		# if self.msg_len < self.size_msg_hdr + self.size_mac_len:
+		# 	raise SiFT_MTP_Error('Invalid header message length')
+		
 		try:
 			msg_hdr = self.receive_bytes(self.size_msg_hdr)
 		except SiFT_MTP_Error as e:
@@ -108,8 +111,9 @@ class SiFT_MTP:
 		if parsed_msg_hdr['typ'] not in self.msg_types:
 			raise SiFT_MTP_Error('Unknown message type found in message header')
 
-		if parsed_msg_hdr['sqn'] < self.sqn_r.to_bytes(self.size_msg_hdr_sqn,"big"):
+		if parsed_msg_hdr['sqn'] != self.sqn_r.to_bytes(self.size_msg_hdr_sqn,"big"):
 			raise SiFT_MTP_Error('Invalid sequence number')
+		
 
 		msg_len = int.from_bytes(parsed_msg_hdr['len'], byteorder='big')
 
@@ -118,20 +122,23 @@ class SiFT_MTP:
 		except SiFT_MTP_Error as e:
 			raise SiFT_MTP_Error('Unable to receive message body --> ' + e.err_msg)
 
+		if len(msg_body) != msg_len - self.size_msg_hdr: 
+			raise SiFT_MTP_Error('Incomplete message body reveived')
+
 
 		# receives and parses message, returns msg_type and msg_payload
 		# decrypts and verifies MAC using the provided nonce (in header) and MAC (final bytes)
 		
-		encrypted_payload = msg_body[:-12]
-		mac = msg_body[-12:]
+		encrypted_payload = msg_body[:-self.size_mac_len]
+		mac = msg_body[-self.size_mac_len:]
 		nonce = parsed_msg_hdr['sqn'] + parsed_msg_hdr['rnd']
-		cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=12)
+		cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=self.size_mac_len)
 
 		try:
 			cipher.update(msg_hdr)
 			plaintext = cipher.decrypt_and_verify(encrypted_payload, mac)
 		except (ValueError, KeyError) as e:
-			raise SiFT_MTP_Error('Unable to receive message body')			
+			raise SiFT_MTP_Error('MAC verification failed')			
 		#--------------------------
 		self.sqn_r += 1
 
@@ -144,9 +151,6 @@ class SiFT_MTP:
 			print(msg_body.hex())
 			print('------------------------------------------')
 		# DEBUG 
-
-		if len(msg_body) != msg_len - self.size_msg_hdr: 
-			raise SiFT_MTP_Error('Incomplete message body reveived')
 
 		return parsed_msg_hdr['typ'], plaintext
 
@@ -163,10 +167,10 @@ class SiFT_MTP:
 	def send_msg(self, msg_type, msg_payload):
 
 		# build encrypted message
-		msg_sqn = self.sqn_s
+		msg_sqn = self.sqn_s.to_bytes(self.size_msg_hdr_sqn, byteorder="big")
 		msg_rnd = get_random_bytes(self.size_msg_hdr_rnd)
 		
-		nonce = msg_sqn.to_bytes(self.size_msg_hdr_sqn,"big") + msg_rnd
+		nonce = msg_sqn + msg_rnd
 
 		msg_size = self.size_msg_hdr + len(msg_payload) + self.size_mac_len
 		msg_hdr_len = msg_size.to_bytes(self.size_msg_hdr_len, byteorder='big')
@@ -174,7 +178,7 @@ class SiFT_MTP:
 		cipher = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=self.size_mac_len)
 
 		# header = 		ver  	   |    typ   |  	 len    |  	sqn   |	  rnd 	|   rsv
-		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + msg_sqn.to_bytes(self.size_msg_hdr_sqn, byteorder="big") + msg_rnd + self.rsv
+		msg_hdr = self.msg_hdr_ver + msg_type + msg_hdr_len + msg_sqn + msg_rnd + self.rsv
 		self.sqn_s += 1
 
 		cipher.update(msg_hdr)
