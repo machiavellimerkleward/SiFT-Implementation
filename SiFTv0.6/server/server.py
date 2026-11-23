@@ -16,6 +16,7 @@ class Server:
         self.server_rootdir = './users/'
         self.server_ip = socket.gethostbyname('localhost')
         # self.server_ip = socket.gethostbyname(socket.gethostname())
+        # self.server_ip = '192.168.20.xy'
         self.server_port = 5150
         self.key = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
         # -------------------------------------------------------------
