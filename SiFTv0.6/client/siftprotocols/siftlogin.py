@@ -4,7 +4,10 @@ import time
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import PBKDF2
 from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
-
+#ECDH new imports
+from Crypto.PublicKey import ECC
+from Crypto.Protocol.DH import key_agreement
+from Crypto.Protocol.KDF import HKDF
 
 class SiFT_LOGIN_Error(Exception):
 
@@ -68,6 +71,11 @@ class SiFT_LOGIN:
         if pwdhash == usr_struct['pwdhash']: return True
         return False
 
+    #TODO generate an ephemeral key (in a function? and then can be called by both handle fnc?)
+    # something like key = ECC.generate(curve='P-256') 
+    # can use public_key()  function and export_key function 
+        #  these are from PyCryptodome documentation which from my understanding
+        #  just returns the public half
 
     # handles login process (to be used by the server)
     def handle_login_server(self):
@@ -80,6 +88,10 @@ class SiFT_LOGIN:
             msg_type, msg_payload = self.mtp.receive_msg()
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to receive login request --> ' + e.err_msg)
+
+        #TODO set up key exchange 
+        # server_public and server_private variables are set up  by calling function for ephemeral key
+        # key  = derivation of private and public key -> DH computation -> stretched into 32-byte AES key
 
         # DEBUG 
         if self.DEBUG:
@@ -133,6 +145,12 @@ class SiFT_LOGIN:
 
     # handles login process (to be used by the client)
     def handle_login_client(self, username, password):
+
+        #TODO generate client_private and client_public (ephemeral keys?)
+
+        #send client_public then recieve server_public ? 
+        #derive the key, need to set the key for 
+
 
         # building a login request
         login_req_struct = {}
