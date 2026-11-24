@@ -7,31 +7,44 @@ The goal of this project assignment is to extend your existing SiFT v0.6 protoco
 (iii) the passing of the derived key to the MTP sub-protocol, which should then replace its initial static key with this freshly derived key.
 
 (i) is accomplished through a standard shared secret establishment protocol. 
-- Client creates new emphemeral public/private key pair
-- The client sends their public key to the server 
-- The server uses this public key to encrypt its own public key, then sends this info over (????)
-- Client (decodes) the public key of the server and computes its SHA256 has value
-- Client provides PK hash to user to inspect, option to continue if accepted or kill connection if rejected
-- Client and Server then establish their shared secret (somehow!)
+- Client creates new emphemeral public/private key pair (and possible entity ID?)
+- Client sends establishing information to Server
+    - Encrypted with the Server PK, the client sends their public key to the server (alongside their ID number?)
+    - Server creates a fresh session ID number
+    - The server uses this public key to encrypt its own public key and ID, then sends this info over (?)
+- Client verifies Server authenticity
+    - Client (decodes) the public key of the server and computes its SHA256 hash value
+    - Client provides PK hash to user to inspect, option to continue if accepted or kill connection if rejected
+- Client and Server then establish their shared secret
+    - Client selects random x and computes [math formula]
+    - Client sends the S_PK encrypted (ID, client-half of math formula)
+    - Server selects random y and computes [math formula]
+    - Server sends the C_PK encrypted (SID, server-half of math formula, KDF salting numbers) -- ask!
+    - With both halves, each party computes s, the shared secret for the session
+
+(ii) Key Derivation
+- With both parties knowing s, both Server and Client then use this shared secret to derive a fresh key, via the shared KDF salting numbers, to be used throughout the session as the session key
+    - As both parties share s and KDFn, they both then use these inputs into the same key derivation function (HKDF), and derive the session key
+- Both Server and Client then replace their preexisting static 32-bit keys with the base keys
+
+
 - Before continuing to login protocol, the HMAC of the protocol's messages is sent to verify message integrity and lack of injections -- this is done by Server encrypting its history with the derived key(?) and sending it to Client, who verifies the hash against their own, then sends their encrypted log to the Server, who finally verifies it against their own hash.
 - If this operation succeeds, it is OK for user to continue to Login Protocol
-- Before Login Protocol begins, a shared secret is established between the two parties (somehow, possibly earlier)
+
 
 Specifics:
 - A strong shared secret is used between the parties (DH?)
-- From this strong shared secret, the key is derived via a secure key derivation function (HKDF?)
+- From this strong shared secret, the key is derived via a secure key derivation function (HKDF)
 - Key derivation requires the communication of the correct pseudorandom extrator salting numbers
+- The session key is never used alone, but rather is always salted with random numbers, communicated in the header
+- Before a shared secret key is established, each message is encrypted as before, with a static zero key and its random numbers
+- Thus, the MTP does not need to be modified (??)
 
 Requirements (to be implemented):
 - Replay detection -- implemented?
 - Freshness
 - Session keys should be deleted if the session fails
-
-(ii)
-- Both server and client then use this shared secret to derive a fresh key to be used throughout the session, and every message has a differently salted key, 
-- Or is it that the key is consistent, but the salting is what keeps it fresh? -- Yes
-- Replace their preexisting static 32-bit keys with the base keys
-- Key derivation 
+- Both server and client must use a consistent type of public key encryption/decryption (!!!)
 
 Security Concerns:
 - Due to the establishment of a standing server PK, if this PK is breached, forward secrecy is not guarenteed
