@@ -6,10 +6,16 @@ The goal of this project assignment is to extend your existing SiFT v0.6 protoco
 (ii) the derivation of a 32-byte AES key from the shared secret
 (iii) the passing of the derived key to the MTP sub-protocol, which should then replace its initial static key with this freshly derived key.
 
+TODO:
+- define byte sizes of all subsequently mentioned variables
+- modify MTP message types so that the server knows whether a message is an INIT message or not
+
 (i) is accomplished through a standard shared secret establishment protocol. 
+- Assume initial 32-byte key of zeros, for the transfer of initial information encoded with public keys for the session key establishment
 - Client creates new emphemeral public/private key pair (and possible entity ID?)
 - Client sends establishing information to Server
     - Encrypted with the Server PK, the client sends their public key to the server (alongside their ID number?)
+- Server receives Client information and sends its own establishing information to Client
     - Server creates a fresh session ID number
     - The server uses this public key to encrypt its own public key and ID, then sends this info over (?)
 - Client verifies Server authenticity

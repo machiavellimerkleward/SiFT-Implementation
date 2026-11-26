@@ -45,10 +45,13 @@ class SiFT_MTP:
 		self.type_dnload_req =   b'\x03\x00'
 		self.type_dnload_res_0 = b'\x03\x10'
 		self.type_dnload_res_1 = b'\x03\x11'
+		self.type_init_req = b'\x04\x00'
+		self.type_init_res = b'\x04\x01'
 		self.msg_types = (self.type_login_req, self.type_login_res, 
 						  self.type_command_req, self.type_command_res,
 						  self.type_upload_req_0, self.type_upload_req_1, self.type_upload_res,
-						  self.type_dnload_req, self.type_dnload_res_0, self.type_dnload_res_1)
+						  self.type_dnload_req, self.type_dnload_res_0, self.type_dnload_res_1,
+						  self.type_init_req, self.type_init_res)
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 
@@ -92,6 +95,7 @@ class SiFT_MTP:
 	# tries to receive the encrypted message, if valid, incrementing sqn
 	def receive_msg(self):
 
+		# TODO implement this?
 		# if self.msg_len < self.size_msg_hdr + self.size_mac_len:
 		# 	raise SiFT_MTP_Error('Invalid header message length')
 		

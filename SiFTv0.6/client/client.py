@@ -201,6 +201,14 @@ if __name__ == '__main__':
 
     key = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
     mtp = SiFT_MTP(sckt,key)
+    # initp = SiFT_INIT(mtp)
+    
+    # try:
+        # initp.initiate_handshake_server()
+    # except SiFT_INIT_Error as e:
+        # print('SiFT_INIT_Error: ' + e.err_msg )
+        # sys.exit(1)
+
     loginp = SiFT_LOGIN(mtp)
 
     print()

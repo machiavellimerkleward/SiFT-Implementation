@@ -55,6 +55,17 @@ class Server:
 
         mtp = SiFT_MTP(client_socket, self.key)
 
+
+        # initp = SiFT_INIT(mtp)
+        
+        # try:
+        #     initp.initiate_handshake_server()
+        # except SiFT_INIT_Error as e:
+        #     print('SiFT_INIT_Error: ' + e.err_msg)
+        #     print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))
+        #     client_socket.close()
+        #     return
+
         loginp = SiFT_LOGIN(mtp)
         users = self.load_users(self.server_usersfile)
         loginp.set_server_users(users)
