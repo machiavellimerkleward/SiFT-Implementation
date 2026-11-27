@@ -77,8 +77,8 @@ SiFT v0.6 MTP messages have a 16-byte header that consists of the following fiel
 	- `03 00` : _dnload_req_ (download request)
 	- `03 10` : _dnload_res_0_ (download response containing a file fragment)
 	- `03 11` : _dnload_res_1_ (download response containing the last file fragment)
-  - `04 00` : _init_req_ (initializtion request)
-  - `04 01` : _init_res_ (initialization response)
+  - `04 00` : _init_req_0 (initializtion request, sending client public key and ID)
+  - `04 01` : _init_res_0 (initialization response, receiving server public key and ID)
 - __len__: A 2-byte _message length_ field that contains the length of the entire message (including the header) in bytes (using big endian byte order).
 - __sqn__: A 2-byte _message sequence number_ field that contains the sequence number of this message (using big endian byte order).
 - __rnd__: A 6-byte _random_ field that contains freshly generated random bytes.

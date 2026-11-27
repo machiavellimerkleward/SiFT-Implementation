@@ -201,15 +201,34 @@ if __name__ == '__main__':
         print('Connection to server established on ' + server_ip + ':' + str(server_port))
 
     key = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
-    mtp = SiFT_MTP(sckt,key)
-    initp = SiFT_INIT(mtp)
     
+    # Instantialize Message Transfer Protcol
+    mtp = SiFT_MTP(sckt,key)
+
+    # Instantialize Init Protcol
+    initp = SiFT_INIT(mtp)
+
+    # Generate and exchange public keys with server
     try:
-        initp.initiate_session_client()
+        server_pk_hash = initp.pk_exchange_client()
     except SiFT_INIT_Error as e:
         print('SiFT_INIT_Error: ' + e.err_msg )
         sys.exit(1)
 
+    print()
+    print(f'The hash in hex of the server public key is ', server_pk_hash)
+    print('Do you accept this hash value?')
+    response = input('   Y/N: ')
+    print()
+
+    # Establish shared secret with server
+    try:
+        initp.initiate_session_client(response=response)
+    except SiFT_INIT_Error as e:
+        print('SiFT_INIT_Error: ' + e.err_msg )
+        sys.exit(1)
+    
+    # Instantialize Login Protcol
     loginp = SiFT_LOGIN(mtp)
 
     print()

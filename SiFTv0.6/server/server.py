@@ -5,6 +5,7 @@ from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
 from siftprotocols.siftinit import SiFT_INIT, SiFT_INIT_Error
 from siftprotocols.siftlogin import SiFT_LOGIN, SiFT_LOGIN_Error
 from siftprotocols.siftcmd import SiFT_CMD, SiFT_CMD_Error
+from Crypto.PublicKey import ECC
 
 
 class Server:
@@ -57,11 +58,26 @@ class Server:
         #Instantialize Message Transfer Protocol
         mtp = SiFT_MTP(client_socket, self.key)
 
+        # Generate Server Keypair
+        # key = ECC.generate(curve='P-256')
+        # private_k = key.export_key(format='DER',passphrase='XXX',use_pkcs8=True, protection='PBKDF2WithHMAC-SHA1AndAES256-CBC')
+        # f = open("private_key.der", "wb")
+        # f.write(private_k)
+        # public_k = key.public_key().export_key(format="DER")
+        # f = open("public_key.der", "wb")
+        # f.write(public_k)
+
         # Instantialize Init Protocol
         initp = SiFT_INIT(mtp)
+
+        f = open("private_key.der", "rb")
+        private_kb = f.read()
+        private_k = ECC.import_key(private_kb, passphrase='XXX')
+        f = open("public_key.der", "rb")
+        public_k = f.read()
         
         try:
-            initp.initiate_session_server()
+            initp.initiate_session_server(public_k, private_k)
         except SiFT_INIT_Error as e:
             print('SiFT_INIT_Error: ' + e.err_msg)
             print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))

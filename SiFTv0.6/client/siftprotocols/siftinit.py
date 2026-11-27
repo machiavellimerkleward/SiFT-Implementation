@@ -3,6 +3,7 @@ from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey import ECC
 from Crypto.Protocol.DH import key_agreement
+from Crypto.Protocol import HPKE
 from Crypto.Protocol.KDF import HKDF
 
 from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
@@ -19,92 +20,149 @@ class SiFT_INIT:
 
         self.DEBUG = True
         # --------- CONSTANTS ------------
+        self.id_size = 8 #TODO check
+        self.enc_size = 65
+        self.coding = 'utf-8'
         # --------- STATE ------------
         self.mtp = mtp
-        self.id_size = 8 #TODO check
+        self.server_key = None
+        self.server_ID = None
+        self.public_key = None
+        self.client_ID = None
+
 
 
 # TODO QUESTIONS!
     # Ask where to verify sesson entity ID and ask about size
     # What is the rsv field in the MTP? is it used in this version?
     # Should the Client make its first request an ask for the Server's PK, then encrypt ALL subsequent info with it, instead of sending over its PK,ID immediately?
-    # Ask about 
+    # Ask about what exactly should and shouldn't be encrypted -- public keys? IDs?
+    # How should the permenent server key be created/accessed? write to a file --> 
+    # Is it okay to write the server key to an init variable?
+    # Is the given hash value okay?
 
 
     # TODO create/import helper functions
     # TODO figure out how to verify the session ID information throughout
+    # TODO gather messages into one and cross-verify message hashes
 
     def generate_ephemeral_keypair(self):
         key = ECC.generate(curve='P-256')
         public_k = key.public_key().export_key(format="DER")
         return key, public_k
 
+    def receive_user_response(self, response):
+        response.encode(self.coding)
+        if response == "N" or response == "n":
+            raise SiFT_INIT_Error('Server public key hash has been rejected')
+        elif response == "Y" or response == "y":
+            return True
+        else:
+            raise SiFT_INIT_Error('Invalid response to y/n question')
+        return False
+
+    def derive_key(self, server_key, client_key, client_public, server_public):
+        salt = SHA256.new(client_public + server_public).digest()
+    
+        def kdf(secret):
+            return HKDF(secret, 32, salt, SHA256, context="sift session key")
+    
+        return key_agreement(
+        static_priv=server_key,
+        static_pub=client_key,
+        kdf=kdf
+        )
+
     def replace_session_key():
         # new_key = --> the derived session key, already in another method
         return new_key
-        
-    # First message to the server -- sends Client public key and Client session ID
-    def build_init_req(self, public_k, entity_ID):
-        parsed_req, i = {}, 0
-        #  Should not be a struct, but a combination of bytes
 
-
-
-        # init_req_struct = {}
-        # init_req_struct['Client_PubK'] = public_k
-        # init_req_struct['Client_Session_ID'] = entity_ID
-        # init_req_str = init_req_struct['Client_PubK']
-        # init_req_str += self.delimiter + init_req_struct['Client_Session_ID'] 
-        # return init_req_str.encode(self.coding)
-
-    # def parse_init_req_1(self):
-    #     init_req_fields = init_req.decode(self.coding).split(self.delimiter)
-    #     init_req_struct = {}
-    #     init_req_struct['Client_PubK'] = init_req_fields[0]
-    #     init_req_struct['Client_Session_ID'] = init_req_fields[1]
-    #     return init_req_struct
-
-    def build_init_res(self):
+    def inspect_init_hash():
+        # TODO - compile all message bodies into a large byte object, then take the 
         return
+        
 
-    def parse_init_res(self):
-        return 
-
-    def initiate_session_server(self):
+    def initiate_session_server(self, server_public_key, server_private_key):
 
         #TODO - save every received message body into a long running string, then take its hash at the very end
 
-        # Try to receive Initialization Request
+        # Try to Receive Initialization Request with Client Public Key and ID
         try:
-            msg_type, msg_payload = self.mtp.receive_msg()
+            msg_type, msg_payload_r = self.mtp.receive_msg()
         except SiFT_MTP_Error as e:
             raise SiFT_INIT_Error('Unable to receive initialization request --> ' + e.err_msg)
-            #TODO is this the correct type of error? 
+        if msg_type != self.mtp.type_init_req_0:
+            raise SiFT_INIT_Error('Initialization request 0 expected, but received something else')
 
         # DEBUG 
         if self.DEBUG:
-            print('Incoming payload (' + str(len(msg_payload)) + '):')
-            print(msg_payload[:max(512, len(msg_payload))])
+            print('Incoming payload (' + str(len(msg_payload_r)) + '):')
+            print(msg_payload_r[:max(512, len(msg_payload_r))])
             print('------------------------------------------')
         # DEBUG 
 
-        if msg_type != self.mtp.type_init_req_0:
-            raise SiFT_INIT_Error('Initialization request expected, but received something else')
+        client_public_key = ECC.import_key(msg_payload_r[:-self.id_size])
+        client_session_ID = msg_payload_r[-self.id_size:]
 
+        # Encrypt server public key and ID with received client public key
+        encryptor = HPKE.new(receiver_key=client_public_key,
+                     aead_id=HPKE.AEAD.AES256_GCM)
+        entity_ID = get_random_bytes(self.id_size)
+
+        msg_payload_s = server_public_key + entity_ID
+        data = encryptor.enc + encryptor.seal(msg_payload_s)
+
+        # Try to Send Public Key and ID
+        try:
+            self.mtp.send_msg(self.mtp.type_init_res_0, data)
+        except SiFT_MTP_Error as e:
+            raise SiFT_INIT_Error('Unable to send PK0 response --> ' + e.err_msg)
+
+        # Try to Receive Shared Secret Initialization Request
+        try:
+            msg_type, msg_payload_r = self.mtp.receive_msg()
+        except SiFT_MTP_Error as e:
+            raise SiFT_INIT_Error('Unable to receive initialization request --> ' + e.err_msg)
+        if msg_type != self.mtp.type_init_req_1:
+            raise SiFT_INIT_Error('Initialization request 1 expected, but received something else')
+
+        # DEBUG 
+        if self.DEBUG:
+            print('Incoming payload (' + str(len(msg_payload_r)) + '):')
+            print(msg_payload_r[:max(512, len(msg_payload_r))])
+            print('------------------------------------------')
+        # DEBUG 
+        
+        data_r = msg_payload_r[self.enc_size:]
+        enc = msg_payload_r[:self.enc_size]
+
+        decryptor = HPKE.new(receiver_key=server_private_key,
+                             aead_id=HPKE.AEAD.AES256_GCM,
+                             enc=enc)
+
+        data = decryptor.unseal(data_r)
+
+        secret = self.derive_key(self.server_key, client_key=client_public_key, client_public = self.client_ID, server_public= self.server_ID)
+
+        if data != secret:
+            print('failed to establish shared secret')
         
 
-        # Process Initialization Request
-        entity_ID = get_random_bytes(self.id_size)
+        # TODO FIX, duplicate statement
+        # if msg_type != self.mtp.type_init_req_1:
+            # raise SiFT_INIT_Error('Initialization request expected, but received something else')
         
         # return new_key # ?
 
-    def initiate_session_client(self):
+
+    def pk_exchange_client(self):
         #TODO - save every received message body into a long running string, then take its hash at the very end
 
         # Initialize Ephemeral Key Information
         private_key, public_key = self.generate_ephemeral_keypair()
-        entity_ID = get_random_bytes(self.id_size)
-
+        self.client_ID = get_random_bytes(self.id_size)
+        self.private_key = private_key
+        self.public_key = public_key
         
         # IF requesting server PK immediately
         # try:
@@ -112,33 +170,77 @@ class SiFT_INIT:
         # except SiFT_MTP_Error as e:
         #     raise SiFT_INIT_Error('Unable to send PK request --> ' + e.err_msg)
 
-        # Build an Initialization Request
-        msg_payload = public_key + entity_ID
+        # Commence Initialization Requests
+
+        # First message to the server -- sends Client public key and Client session ID
+        msg_payload_s = public_key + self.client_ID
+
         # Send PK and ID to the server
         try:
-            self.mtp.send_msg(self.mtp.type_init_req_0, msg_payload)
+            self.mtp.send_msg(self.mtp.type_init_req_0, msg_payload_s)
         except SiFT_MTP_Error as e:
-            raise SiFT_INIT_Error('Unable to send PK1 request --> ' + e.err_msg)
+            raise SiFT_INIT_Error('Unable to send PK0 request --> ' + e.err_msg)
 
         # DEBUG 
         if self.DEBUG:
-            print(msg_payload[:max(512, len(msg_payload))])
+            print(msg_payload_s[:max(512, len(msg_payload_s))])
             print('------------------------------------------')
         # DEBUG 
 
-        # Receive server PK and ID
+        # Receive + decrypt server PK and ID
         try:
-            msg_type, msg_payload = self.mtp.receive_msg()
+            msg_type, msg_payload_r = self.mtp.receive_msg()
         except SiFT_MTP_Error as e:
-            raise SiFT_INIT_Error('Unable to receive Server PK1 response --> ' + e.err_msg)
+            raise SiFT_INIT_Error('Unable to receive Server PK0 response --> ' + e.err_msg)
+        if msg_type != self.mtp.type_init_res_0:
+            raise SiFT_INIT_Error('Initialization response 0 expected, but received something else')
 
-        # TODO raise error if it's the wrong message type
+        # self.server_key = ECC.import_key(msg_payload_r)
 
-        server_pk = ECC.import_key(msg_payload)
+        # Decrypt message and extract server PK and ID
+        data_r = msg_payload_r[self.enc_size:]
+        enc = msg_payload_r[:self.enc_size]
+
+        decryptor = HPKE.new(receiver_key=private_key,
+                             aead_id=HPKE.AEAD.AES256_GCM,
+                             enc=enc)
+
+        data = decryptor.unseal(data_r)
+
+        self.server_key = ECC.import_key(data[:-self.id_size])
+        self.server_ID = data[-self.id_size:]        
+
+        # TODO Offer hash of server PK to user to verify
+
+        pwdhash = SHA256.new(data[:-self.id_size])
+        pwdhash = pwdhash.hexdigest()
+
+        return pwdhash
         
 
+    def initiate_session_client(self, response):
+        result = self.receive_user_response(response=response)
+        if result != True:
+            raise SiFT_INIT_Error('Hash verification unable to proceed')
 
+        print(self.client_ID)
+        secret = self.derive_key(self.server_key, self.public_key, self.client_ID, self.server_ID)
 
-        
+        encryptor = HPKE.new(receiver_key=self.server_key,
+                     aead_id=HPKE.AEAD.AES256_GCM)
+
+        enc = encryptor.enc
+
+        msg_payload_s = enc + encryptor.seal(secret)
+
+        try:
+            self.mtp.send_msg(self.mtp.type_init_req_1, msg_payload_s)
+        except SiFT_MTP_Error as e:
+            raise SiFT_INIT_Error('Unable to send PK1 request --> ' + e.err_msg)
+
+        # Declare the shared secret and encrypt with server PK
+
+        return
+
         # self.mtp.
         # return new_key # ?

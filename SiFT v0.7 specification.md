@@ -14,16 +14,19 @@ TODO:
 - Assume initial 32-byte key of zeros, for the transfer of initial information encoded with public keys for the session key establishment
 - Client creates new emphemeral public/private key pair (and possible entity ID?)
 - Client sends establishing information to Server
+    - EITHER encrypted with server PK -- PREV REQUEST -- OR unencrypted
     - Encrypted with the Server PK, the client sends their public key to the server (alongside their ID number?)
 - Server receives Client information and sends its own establishing information to Client
     - Server creates a fresh session ID number
     - The server uses this public key to encrypt its own public key and ID, then sends this info over
+    - USES HPKE AES256-GCM
 - Client verifies Server authenticity
     - Client (decodes) the public key of the server and computes its SHA256 hash value
-    - Client provides PK hash to user to inspect, option to continue if accepted or kill connection if rejected
+    - Client provides PK SHA256 hash to user to inspect, option to continue if accepted or kill connection if rejected
+DONE!
 - Client and Server then establish their shared secret
     - Client selects random x and computes [math formula]
-    - Client sends the S_PK encrypted (ID, client-half of math formula)
+    - Client sends the S_PK encrypted (SID, client-half of math formula)
     - Server selects random y and computes [math formula]
     - Server sends the C_PK encrypted (SID, server-half of math formula, KDF salting numbers) -- ask!
     - With both halves, each party computes s, the shared secret for the session
@@ -32,6 +35,10 @@ TODO:
 - With both parties knowing s, both Server and Client then use this shared secret to derive a fresh key, via the shared KDF salting numbers, to be used throughout the session as the session key
     - As both parties share s and KDFn, they both then use these inputs into the same key derivation function (HKDF), and derive the session key
 - Both Server and Client then replace their preexisting static 32-bit keys with the base keys
+
+(iii)
+- After the completion of the shared secret establishment and key derivation, this information is sent to the MTP
+- TODO HOW???
 
 
 - Before continuing to login protocol, the HMAC of the protocol's messages is sent to verify message integrity and lack of injections -- this is done by Server encrypting its history with the derived key(?) and sending it to Client, who verifies the hash against their own, then sends their encrypted log to the Server, who finally verifies it against their own hash.
@@ -55,8 +62,6 @@ Requirements (to be implemented):
 Security Concerns:
 - Due to the establishment of a standing server PK, if this PK is breached, forward secrecy is not guarenteed
 
-(iii)
-- After the completion of the shared secret establishment and key derivation, this information is sent to the MTP
 
 Questions:
 - where/how should the shared secret be established
