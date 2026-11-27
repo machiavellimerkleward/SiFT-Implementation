@@ -45,13 +45,22 @@ class SiFT_MTP:
 		self.type_dnload_req =   b'\x03\x00'
 		self.type_dnload_res_0 = b'\x03\x10'
 		self.type_dnload_res_1 = b'\x03\x11'
-		self.type_init_req = b'\x04\x00'
-		self.type_init_res = b'\x04\x01'
+		self.type_init_req_0 = b'\x04\x00'
+		self.type_init_res_0 = b'\x04\x10'
+		self.type_init_req_1 = b'\x04\x01'
+		self.type_init_res_1 = b'\x04\x11'
+		self.type_init_req_2 = b'\x04\x02'
+		self.type_init_res_2 = b'\x04\x12'
+		self.type_init_req_3 = b'\x04\x03'
+		self.type_init_res_3 = b'\x04\x13'
 		self.msg_types = (self.type_login_req, self.type_login_res, 
 						  self.type_command_req, self.type_command_res,
 						  self.type_upload_req_0, self.type_upload_req_1, self.type_upload_res,
 						  self.type_dnload_req, self.type_dnload_res_0, self.type_dnload_res_1,
-						  self.type_init_req, self.type_init_res)
+						  self.type_init_req_0, self.type_init_res_0,
+						  self.type_init_req_1, self.type_init_res_1,
+						  self.type_init_req_2, self.type_init_res_2,
+						  self.type_init_req_3, self.type_init_res_3,)
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 

@@ -3,6 +3,7 @@
 import sys, os, socket, cmd, getpass
 from Crypto.Hash import SHA256
 from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
+from siftprotocols.siftinit import SiFT_INIT, SiFT_INIT_Error
 from siftprotocols.siftlogin import SiFT_LOGIN, SiFT_LOGIN_Error
 from siftprotocols.siftcmd import SiFT_CMD, SiFT_CMD_Error
 from siftprotocols.siftupl import SiFT_UPL, SiFT_UPL_Error
@@ -201,13 +202,13 @@ if __name__ == '__main__':
 
     key = bytes.fromhex('0000000000000000000000000000000000000000000000000000000000000000')
     mtp = SiFT_MTP(sckt,key)
-    # initp = SiFT_INIT(mtp)
+    initp = SiFT_INIT(mtp)
     
-    # try:
-        # initp.initiate_handshake_server()
-    # except SiFT_INIT_Error as e:
-        # print('SiFT_INIT_Error: ' + e.err_msg )
-        # sys.exit(1)
+    try:
+        initp.initiate_session_client()
+    except SiFT_INIT_Error as e:
+        print('SiFT_INIT_Error: ' + e.err_msg )
+        sys.exit(1)
 
     loginp = SiFT_LOGIN(mtp)
 

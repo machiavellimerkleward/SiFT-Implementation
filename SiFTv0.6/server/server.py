@@ -2,6 +2,7 @@
 
 import sys, threading, socket, getpass
 from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
+from siftprotocols.siftinit import SiFT_INIT, SiFT_INIT_Error
 from siftprotocols.siftlogin import SiFT_LOGIN, SiFT_LOGIN_Error
 from siftprotocols.siftcmd import SiFT_CMD, SiFT_CMD_Error
 
@@ -53,19 +54,21 @@ class Server:
     def handle_client(self, client_socket, addr):
         print('New client on ' + addr[0] + ':' + str(addr[1]))
 
+        #Instantialize Message Transfer Protocol
         mtp = SiFT_MTP(client_socket, self.key)
 
-
-        # initp = SiFT_INIT(mtp)
+        # Instantialize Init Protocol
+        initp = SiFT_INIT(mtp)
         
-        # try:
-        #     initp.initiate_handshake_server()
-        # except SiFT_INIT_Error as e:
-        #     print('SiFT_INIT_Error: ' + e.err_msg)
-        #     print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))
-        #     client_socket.close()
-        #     return
+        try:
+            initp.initiate_session_server()
+        except SiFT_INIT_Error as e:
+            print('SiFT_INIT_Error: ' + e.err_msg)
+            print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))
+            client_socket.close()
+            return
 
+        # Initialize Login Protocol
         loginp = SiFT_LOGIN(mtp)
         users = self.load_users(self.server_usersfile)
         loginp.set_server_users(users)

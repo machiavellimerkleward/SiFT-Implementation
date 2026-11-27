@@ -17,7 +17,7 @@ TODO:
     - Encrypted with the Server PK, the client sends their public key to the server (alongside their ID number?)
 - Server receives Client information and sends its own establishing information to Client
     - Server creates a fresh session ID number
-    - The server uses this public key to encrypt its own public key and ID, then sends this info over (?)
+    - The server uses this public key to encrypt its own public key and ID, then sends this info over
 - Client verifies Server authenticity
     - Client (decodes) the public key of the server and computes its SHA256 hash value
     - Client provides PK hash to user to inspect, option to continue if accepted or kill connection if rejected
