@@ -116,8 +116,6 @@ class SiFT_INIT:
 
         client_public_key = ECC.import_key(msg_payload_r[:-self.id_size])
         self.client_ID = msg_payload_r[-self.id_size:]
-        print('client ID')
-        print(self.client_ID)
 
         # Encrypt server public key and ID with received client public key
         encryptor = HPKE.new(receiver_key=client_public_key,
@@ -147,30 +145,23 @@ class SiFT_INIT:
             print(msg_payload_r[:max(512, len(msg_payload_r))])
             print('------------------------------------------')
         # DEBUG 
+        
+        data_r = msg_payload_r[self.enc_size:]
+        enc = msg_payload_r[:self.enc_size]
+
+        decryptor = HPKE.new(receiver_key=server_private_key,
+                             aead_id=HPKE.AEAD.AES256_GCM,
+                             enc=enc)
+
+        data = decryptor.unseal(data_r)
 
         secret = self.derive_server_key(personal_priv_k=server_private_key, 
                                         peer_pub_k=client_public_key, 
                                         client_ID=self.client_ID, 
                                         server_ID= self.server_ID)
-        print(secret)
-        print(secret == msg_payload_r)
-        
-        # data_r = msg_payload_r[self.enc_size:]
-        # enc = msg_payload_r[:self.enc_size]
 
-        # decryptor = HPKE.new(receiver_key=server_private_key,
-        #                      aead_id=HPKE.AEAD.AES256_GCM,
-        #                      enc=enc)
-
-        # data = decryptor.unseal(data_r)
-
-        # secret = self.derive_server_key(personal_priv_k=server_private_key, 
-        #                                 peer_pub_k=client_public_key, 
-        #                                 client_ID=self.client_ID, 
-        #                                 server_ID= self.server_ID)
-
-        # if data != secret:
-        #     print('failed to establish shared secret')
+        if data != secret:
+            print('Failed to establish shared secret')
         
 
         # TODO FIX, duplicate statement
@@ -248,21 +239,17 @@ class SiFT_INIT:
         if result != True:
             raise SiFT_INIT_Error('Hash verification unable to proceed')
 
-        print(self.client_ID)
         secret = self.derive_client_key(personal_priv_k=self.client_private_key, 
                                         peer_pub_k=self.server_key, 
                                         client_ID=self.client_ID, 
                                         server_ID=self.server_ID)
 
-        print(secret)
-        msg_payload_s = secret
+        encryptor = HPKE.new(receiver_key=self.server_key,
+                     aead_id=HPKE.AEAD.AES256_GCM)
 
-        # encryptor = HPKE.new(receiver_key=self.server_key,
-        #              aead_id=HPKE.AEAD.AES256_GCM)
+        enc = encryptor.enc
 
-        # enc = encryptor.enc
-
-        # msg_payload_s = enc + encryptor.seal(secret)
+        msg_payload_s = enc + encryptor.seal(secret)
 
         try:
             self.mtp.send_msg(self.mtp.type_init_req_1, msg_payload_s)
