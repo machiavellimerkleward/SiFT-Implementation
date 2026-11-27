@@ -1,6 +1,6 @@
-# Simple File Transfer v0.6
+# Simple File Transfer v0.7
 
-This document specifies version 0.6 of the Simple File Transfer (SiFT) protocol. SiFT can be used by a client to send file commands to a server, which executes those commands. SiFT supports the following 7 commands (same as for SiFT v0.5):
+This document specifies version 0.7 of the Simple File Transfer (SiFT) protocol. SiFT can be used by a client to send file commands to a server, which executes those commands. SiFT supports the following 7 commands (same as for SiFT v0.5 and SiFT v0.6):
 
 - __pwd__ --> Print current working directory: Returns to the client the name of the current working directory on the server.
 - __lst__ --> List content of the current working directory: Returns to the client the list of files and directories in the current working directory on the server. 
@@ -10,9 +10,9 @@ This document specifies version 0.6 of the Simple File Transfer (SiFT) protocol.
 - __upl__ --> Upload file: Uploads a file from the client to the server. The name of the file to be uploaded is provided as an argument to the upl command and the file is put in the current working directory on the server.
 - __dnl__ --> Download file: Downloads a file from the current working directory of the server to the client. The name of the file to be downloaded is provided as an argument to the dnl command.
 
-SiFT allows the client and the server to communicate via a network and execute the above commands remotely. It assumes that the client and the server uses the TCP/IP protocol to establish a connection and to send data reliably to each other. By reliability, we mean that the bytes sent by a party arrive to the other party, and they arrive in the order that they were sent. The SiFT v0.6 server must listen and accept client connection requests on TCP port 5150.
+SiFT allows the client and the server to communicate via a network and execute the above commands remotely. It assumes that the client and the server uses the TCP/IP protocol to establish a connection and to send data reliably to each other. By reliability, we mean that the bytes sent by a party arrive to the other party, and they arrive in the order that they were sent. The server listens and accepts client connection requests on TCP port 5150.
 
-Unlike earlier versions, SiFT v0.6 provides a basic level of protection against man-in-the-middle attacks by using a cryptographically secured message transfer sub-protocol. This sub-protocol uses symmetric key cryptographic primitives, and hence, needs a shared secret key. Normally such a shared secret key should be established dynamically between the client and the server; however, in SiFT v0.6, a static (hard coded) key is used. We understand that this is a weak "solution" and we expect that later versions will fix this weakness by extending the SiFT protocols with a dynamic shared secret establishment scheme.
+Unlike earlier versions, SiFT v0.7 implements a shared secret key established dynamically between the client and the server. A 32-byte AES key is derived from the shared secret. The static key used in SiFT v0.6 is replaced with this freshly derived key and passed to the MTP sub-protocol.
 
 ## Overview of sub-protocols
 
@@ -30,20 +30,18 @@ SiFT v0.7 has the same sub-protocols as SiFT v0.6, with the addition of one with
 
 SiFT v0.7 messages are carried by the Message Transfer Protocol (MTP), which provides cryptographic protection to them. Messages are encrypted, their integrity is protected, and sequence numbers are used to detect replay attacks. MTP uses symmetric key cryptographic primitives, which require shared secret keys dynamically established between the client and the server. 
 
-TODO Describe Init Protocol
-However, in this version of SiFT, a static (hard coded) key is used.
+# TODO Describe Init Protocol
+The Init Protocol is used to establish a standard shared secret establishment protocol meant to replace the previously used static key. The Login Protocol is used to authenticate the client to the server via a username / password mechanism right after the establishment of a connection between them. After the Login Protocol, the Commands Protocol is used to send file commands of the client to the server and responses to those commands. Moreover, the upload command is followed by the execution of the Upload Protocol, which is responsible for the actual upload of the selected file to the server, and the download command is followed by the execution of the Download Protocol, which is responsible for the actual download of the selected file from the server. All messages of the Login, Commands, Upload, and Download Protocols are cryptographically protected by MTP.
 
-The Login Protocol is used to authenticate the client to the server via a username / password mechanism right after the establishment of a connection between them. After the Login Protocol, the Commands Protocol is used to send file commands of the client to the server and responses to those commands. Moreover, the upload command is followed by the execution of the Upload Protocol, which is responsible for the actual upload of the selected file to the server, and the download command is followed by the execution of the Download Protocol, which is responsible for the actual download of the selected file from the server. All messages of the Login, Commands, Upload, and Download Protocols are cryptographically protected by MTP.
+## SiFT v0.7 Message Transfer Protocol 
 
-## SiFT v0.6 Message Transfer Protocol 
+The SiFT v0.7 Message Transfer Protocol (MTP) uses cryptography to encrypt SiFT messages (i.e., commands and their arguments sent by the client to the server and the server's responses to them, as well as the files that are uploaded to or downloaded from the server), to protect their integrity, and to ensure their authenticity. MTP also uses sequence numbering of messages to protect against replay attacks. 
 
-The SiFT v0.6 Message Transfer Protocol (MTP) uses cryptography to encrypt SiFT messages (i.e., commands and their arguments sent by the client to the server and the server's responses to them, as well as the files that are uploaded to or downloaded from the server), to protect their integrity, and to ensure their authenticity. MTP also uses sequence numbering of messages to protect against replay attacks. 
-
-More specifically, SiFT v0.6 MTP uses AES in GCM mode, which provides encryption, integrity protection, and origin authentication of MTP messages. The AES-GCM authentication tag covers all MTP message header fields and the encrypted payload. The header contains a message sequence number explicitly. In this version of the protocol, AES-GCM uses a static 256-bit key that contains 32 `00` bytes (static all-zero key).
+More specifically, SiFT v0.7 MTP uses AES in GCM mode, which provides encryption, integrity protection, and origin authentication of MTP messages. The AES-GCM authentication tag covers all MTP message header fields and the encrypted payload. The header contains a message sequence number explicitly. Before the Login Protocol begins, the client and the server run the handshake described below, which establishes a fresh session key that replaces the static key.
 
 ### Message formats
 
-SiFT v0.6 MTP messages have the following format:
+SiFT v0.7 MTP messages have the following format:
 
 ```
 	+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
@@ -63,7 +61,7 @@ SiFT v0.6 MTP messages have the following format:
 	+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
 ```
 
-SiFT v0.6 MTP messages have a 16-byte header that consists of the following fields:
+SiFT v0.7 MTP messages have a 16-byte header that consists of the following fields:
 
 - __ver__: A 2-byte _version number_ field, where the first byte is the major version (i.e., 0 in case of v0.6) and the second byte is the minor version (i.e., 6 in case of v0.6). This means that messages conforming this specification must start with the byte sequence `00 06`.
 - __typ__: A 2-byte _message type_ field that specifies the type of the payload in the message. The following message types are supported by SiFT v0.6:
@@ -129,7 +127,20 @@ When such an MTP message is received, the receiving party
 
 A message that does not pass all verifications must be silently discarded (no error message is sent in the MTP protocol) and the connection between the client and the server must be closed. Closing the connection is initiated by the receiving party that encountered the offending message.
 
-## SiFT v0.6 Login, Commands, Upload and Download Protocols
+# SiFT v0.7 Init Protocols (NEW SECTION)
+
+Shared Secret Establishment
+The server holds a long-term P-256 key pair (S_PK, S_SK). The client should generate a fresh ephemeral P-256 key pair (C_PK, C_SK) and a random 8-byte client ID (C_ID) for every session. The client opens with init request 0, which carries the DER-encoded C_PK followed by C_ID, sent inside an MTP message protected by the zero key.
+The server should then imports C_PK, creates a random 8-byte server ID (S_ID), and replies with init response 0. Its payload is S_PK followed by S_ID, encrypted to C_PK with HPKE and AES-256-GCM. It is sent as the 65-byte HPKE encapsulated key followed by the ciphertext. The client decrypts it with C_SK and recovers S_PK and S_ID.
+The client then computes the SHA-256 hash of S_PK, shows its hex digest to the user, and asks for a y or n answer. Any answer other than y or n, and any n, aborts the session. On y, the client continues with the key derivation below and sends init request 1, which carries the derived secret encrypted to S_PK with HPKE and AES-256-GCM, again as encapsulated key plus ciphertext. The server decrypts it with S_SK, derives the secret itself, and compares the two values.
+
+Key Derivation and Switch
+Both sides should run ECDH on P-256 and feed the result into HKDF-SHA256 to produce a 32-byte key. The salt is SHA-256(C_ID || S_ID) and the context string is sift session key. This key is the session key that is meant to replace the static zero key. The MTP message format does not change, since the header still carries the sequence number and the random value that form the GCM nonce, and only the key differs. The sequence number restarts at the beginning of the session and increases with every message, which gives replay detection.
+
+Requirements and Security Considerations
+The client key pair and both IDs must be fresh for every session, so no session key is ever reused. Both sides must use the same public-key scheme (P-256 with HPKE and AES-256-GCM) for the encrypted handshake messages.
+
+## SiFT v0.7 Login, Commands, Upload and Download Protocols
 
 All other protocols (Login, Commands, Upload and Download) are the same as in SiFT v0.5.
 
