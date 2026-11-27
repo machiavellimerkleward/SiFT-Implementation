@@ -18,7 +18,7 @@ class SiFT_INIT_Error(Exception):
 class SiFT_INIT:
     def __init__(self, mtp):
 
-        self.DEBUG = True
+        self.DEBUG = False
         # --------- CONSTANTS ------------
         self.id_size = 8 #TODO check
         self.enc_size = 65
@@ -27,7 +27,8 @@ class SiFT_INIT:
         self.mtp = mtp
         self.server_key = None
         self.server_ID = None
-        self.public_key = None
+        self.client_public_key = None
+        self.client_private_key = None
         self.client_ID = None
 
 
@@ -61,15 +62,27 @@ class SiFT_INIT:
             raise SiFT_INIT_Error('Invalid response to y/n question')
         return False
 
-    def derive_key(self, server_key, client_key, client_public, server_public):
-        salt = SHA256.new(client_public + server_public).digest()
+    def derive_server_key(self, personal_priv_k, peer_pub_k, client_ID, server_ID):
+        salt = SHA256.new(client_ID + server_ID).digest()
     
         def kdf(secret):
-            return HKDF(secret, 32, salt, SHA256, context="sift session key")
+            return HKDF(secret, 32, salt, SHA256, context=b'sift session key')
     
         return key_agreement(
-        static_priv=server_key,
-        static_pub=client_key,
+        static_priv=personal_priv_k,
+        eph_pub=peer_pub_k,
+        kdf=kdf
+        )
+    
+    def derive_client_key(self, personal_priv_k, peer_pub_k, client_ID, server_ID):
+        salt = SHA256.new(client_ID + server_ID).digest()
+    
+        def kdf(secret):
+            return HKDF(secret, 32, salt, SHA256, context=b'sift session key')
+    
+        return key_agreement(
+        eph_priv=personal_priv_k,
+        static_pub=peer_pub_k,
         kdf=kdf
         )
 
@@ -102,14 +115,16 @@ class SiFT_INIT:
         # DEBUG 
 
         client_public_key = ECC.import_key(msg_payload_r[:-self.id_size])
-        client_session_ID = msg_payload_r[-self.id_size:]
+        self.client_ID = msg_payload_r[-self.id_size:]
+        print('client ID')
+        print(self.client_ID)
 
         # Encrypt server public key and ID with received client public key
         encryptor = HPKE.new(receiver_key=client_public_key,
                      aead_id=HPKE.AEAD.AES256_GCM)
-        entity_ID = get_random_bytes(self.id_size)
+        self.server_ID = get_random_bytes(self.id_size)
 
-        msg_payload_s = server_public_key + entity_ID
+        msg_payload_s = server_public_key + self.server_ID
         data = encryptor.enc + encryptor.seal(msg_payload_s)
 
         # Try to Send Public Key and ID
@@ -132,20 +147,30 @@ class SiFT_INIT:
             print(msg_payload_r[:max(512, len(msg_payload_r))])
             print('------------------------------------------')
         # DEBUG 
+
+        secret = self.derive_server_key(personal_priv_k=server_private_key, 
+                                        peer_pub_k=client_public_key, 
+                                        client_ID=self.client_ID, 
+                                        server_ID= self.server_ID)
+        print(secret)
+        print(secret == msg_payload_r)
         
-        data_r = msg_payload_r[self.enc_size:]
-        enc = msg_payload_r[:self.enc_size]
+        # data_r = msg_payload_r[self.enc_size:]
+        # enc = msg_payload_r[:self.enc_size]
 
-        decryptor = HPKE.new(receiver_key=server_private_key,
-                             aead_id=HPKE.AEAD.AES256_GCM,
-                             enc=enc)
+        # decryptor = HPKE.new(receiver_key=server_private_key,
+        #                      aead_id=HPKE.AEAD.AES256_GCM,
+        #                      enc=enc)
 
-        data = decryptor.unseal(data_r)
+        # data = decryptor.unseal(data_r)
 
-        secret = self.derive_key(self.server_key, client_key=client_public_key, client_public = self.client_ID, server_public= self.server_ID)
+        # secret = self.derive_server_key(personal_priv_k=server_private_key, 
+        #                                 peer_pub_k=client_public_key, 
+        #                                 client_ID=self.client_ID, 
+        #                                 server_ID= self.server_ID)
 
-        if data != secret:
-            print('failed to establish shared secret')
+        # if data != secret:
+        #     print('failed to establish shared secret')
         
 
         # TODO FIX, duplicate statement
@@ -159,10 +184,10 @@ class SiFT_INIT:
         #TODO - save every received message body into a long running string, then take its hash at the very end
 
         # Initialize Ephemeral Key Information
-        private_key, public_key = self.generate_ephemeral_keypair()
+        client_private_key, client_public_key = self.generate_ephemeral_keypair()
         self.client_ID = get_random_bytes(self.id_size)
-        self.private_key = private_key
-        self.public_key = public_key
+        self.client_private_key = client_private_key
+        self.client_public_key = client_public_key
         
         # IF requesting server PK immediately
         # try:
@@ -173,7 +198,7 @@ class SiFT_INIT:
         # Commence Initialization Requests
 
         # First message to the server -- sends Client public key and Client session ID
-        msg_payload_s = public_key + self.client_ID
+        msg_payload_s = client_public_key + self.client_ID
 
         # Send PK and ID to the server
         try:
@@ -201,7 +226,7 @@ class SiFT_INIT:
         data_r = msg_payload_r[self.enc_size:]
         enc = msg_payload_r[:self.enc_size]
 
-        decryptor = HPKE.new(receiver_key=private_key,
+        decryptor = HPKE.new(receiver_key=client_private_key,
                              aead_id=HPKE.AEAD.AES256_GCM,
                              enc=enc)
 
@@ -224,14 +249,20 @@ class SiFT_INIT:
             raise SiFT_INIT_Error('Hash verification unable to proceed')
 
         print(self.client_ID)
-        secret = self.derive_key(self.server_key, self.public_key, self.client_ID, self.server_ID)
+        secret = self.derive_client_key(personal_priv_k=self.client_private_key, 
+                                        peer_pub_k=self.server_key, 
+                                        client_ID=self.client_ID, 
+                                        server_ID=self.server_ID)
 
-        encryptor = HPKE.new(receiver_key=self.server_key,
-                     aead_id=HPKE.AEAD.AES256_GCM)
+        print(secret)
+        msg_payload_s = secret
 
-        enc = encryptor.enc
+        # encryptor = HPKE.new(receiver_key=self.server_key,
+        #              aead_id=HPKE.AEAD.AES256_GCM)
 
-        msg_payload_s = enc + encryptor.seal(secret)
+        # enc = encryptor.enc
+
+        # msg_payload_s = enc + encryptor.seal(secret)
 
         try:
             self.mtp.send_msg(self.mtp.type_init_req_1, msg_payload_s)

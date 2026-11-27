@@ -72,7 +72,7 @@ class Server:
 
         f = open("private_key.der", "rb")
         private_kb = f.read()
-        private_k = ECC.import_key(private_kb, passphrase='XXX')
+        private_k = ECC.import_key(private_kb, passphrase='ait-budapest')
         f = open("public_key.der", "rb")
         public_k = f.read()
         

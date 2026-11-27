@@ -13,6 +13,7 @@ TODO:
 (i) is accomplished through a standard shared secret establishment protocol. 
 - Assume initial 32-byte key of zeros, for the transfer of initial information encoded with public keys for the session key establishment
 - Client creates new emphemeral public/private key pair (and possible entity ID?)
+- TODO! Client does not need private/public key, just DH setup
 - Client sends establishing information to Server
     - EITHER encrypted with server PK -- PREV REQUEST -- OR unencrypted
     - Encrypted with the Server PK, the client sends their public key to the server (alongside their ID number?)
@@ -30,6 +31,11 @@ DONE!
     - Server selects random y and computes [math formula]
     - Server sends the C_PK encrypted (SID, server-half of math formula, KDF salting numbers) -- ask!
     - With both halves, each party computes s, the shared secret for the session
+
+
+TODO:
+- record login attempts across sessions in a modifiable file
+- public key sign the hash of the public key --> figure out how to do this
 
 (ii) Key Derivation
 - With both parties knowing s, both Server and Client then use this shared secret to derive a fresh key, via the shared KDF salting numbers, to be used throughout the session as the session key
