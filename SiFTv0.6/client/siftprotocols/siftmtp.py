@@ -12,7 +12,7 @@ class SiFT_MTP_Error(Exception):
 class SiFT_MTP:
 	def __init__(self, peer_socket, key):
 
-		self.DEBUG = True
+		self.DEBUG = False
 		# --------- CONSTANTS ------------
 		self.version_major = 0
 		self.version_minor = 6
@@ -58,8 +58,9 @@ class SiFT_MTP:
 		# --------- STATE ------------
 		self.peer_socket = peer_socket
 
-	
 
+	def change_state_key(self, new_key):
+		self.key = new_key
 
 	# parses a message header and returns a dictionary containing the header fields
 	def parse_msg_header(self, msg_hdr):

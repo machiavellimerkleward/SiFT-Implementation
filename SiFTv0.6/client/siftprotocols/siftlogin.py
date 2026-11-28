@@ -4,11 +4,7 @@ import time
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import PBKDF2
 from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
-#ECDH new imports
-from Crypto.PublicKey import ECC
-from Crypto.Protocol.DH import key_agreement
-from Crypto.Protocol.KDF import HKDF
-from Crypto.Random import get_random_bytes
+
 
 class SiFT_LOGIN_Error(Exception):
 
@@ -18,7 +14,7 @@ class SiFT_LOGIN_Error(Exception):
 class SiFT_LOGIN:
     def __init__(self, mtp):
 
-        self.DEBUG = True
+        self.DEBUG = False
         # --------- CONSTANTS ------------
         self.delimiter = '\n'
         self.coding = 'utf-8'
@@ -72,23 +68,6 @@ class SiFT_LOGIN:
         if pwdhash == usr_struct['pwdhash']: return True
         return False
 
-    #TODO generate an ephemeral key 
-
-    # generates a key and returns the public key
-    # def make_key():
-    #     key = ECC.generate(curve='P-256')
-    #     return key.public_key().export_key(format="DER")
-
-    #TODO HKDF key derivation example function
-
-    # def derive_key(secret):
-    #     salt = get_random_bytes(64)
-    #     return HKDF(
-    #         secret=secret,
-    #         key_len=32,
-    #         salt=salt,
-    #         hashmod=SHA256
-    #         )
 
     # handles login process (to be used by the server)
     def handle_login_server(self):
@@ -101,11 +80,6 @@ class SiFT_LOGIN:
             msg_type, msg_payload = self.mtp.receive_msg()
         except SiFT_MTP_Error as e:
             raise SiFT_LOGIN_Error('Unable to receive login request --> ' + e.err_msg)
-
-        #TODO set up key exchange 
-        server_private, server_public = self.make_key()
-        # server_public and server_private variables are set up  by calling function for ephemeral key
-        # key  = derivation of private and public key -> DH computation -> stretched into 32-byte AES key
 
         # DEBUG 
         if self.DEBUG:
@@ -159,12 +133,6 @@ class SiFT_LOGIN:
 
     # handles login process (to be used by the client)
     def handle_login_client(self, username, password):
-
-        #TODO generate client_private and client_public (ephemeral keys?)
-
-        #send client_public then recieve server_public ? 
-        #derive the key, need to set the key for 
-
 
         # building a login request
         login_req_struct = {}

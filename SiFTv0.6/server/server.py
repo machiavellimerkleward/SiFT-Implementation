@@ -77,12 +77,14 @@ class Server:
         public_k = f.read()
         
         try:
-            initp.initiate_session_server(public_k, private_k)
+            self.key = initp.initiate_session_server(public_k, private_k)
         except SiFT_INIT_Error as e:
             print('SiFT_INIT_Error: ' + e.err_msg)
             print('Closing connection with client on ' + addr[0] + ':' + str(addr[1]))
             client_socket.close()
             return
+
+        mtp.change_state_key(self.key)
 
         # Initialize Login Protocol
         loginp = SiFT_LOGIN(mtp)

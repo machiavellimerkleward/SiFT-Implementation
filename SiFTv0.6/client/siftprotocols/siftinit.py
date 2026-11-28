@@ -60,7 +60,6 @@ class SiFT_INIT:
 
         try:
             verifier.verify(h, signature)
-            print('Signature is valid.')
         except ValueError:
             raise SiFT_INIT_Error('Signature is invalid.')
 
@@ -111,8 +110,8 @@ class SiFT_INIT:
         
 
     def initiate_session_server(self, server_public_key, server_private_key):
-        outgoing_msg_h = SHA256.new()
-        incoming_msg_h = SHA256.new()
+        server_outgoing_msg_h = SHA256.new()
+        server_incoming_msg_h = SHA256.new()
 
         # Try to Receive Initialization Request with Client Public Key and ID
         try:
@@ -130,7 +129,7 @@ class SiFT_INIT:
         # DEBUG 
 
         # Update hash of receieved messages with the first message (in cleartext)
-        incoming_msg_h.update(msg_payload_r)
+        server_incoming_msg_h.update(msg_payload_r)
         
         # Parse client public key and client session ID
         client_public_key = ECC.import_key(msg_payload_r[:-self.id_size])
@@ -147,7 +146,7 @@ class SiFT_INIT:
         msg_payload_s = self.client_ID + server_public_key + signature + self.server_ID
 
         # Update hash of sent messages
-        outgoing_msg_h.update(msg_payload_s)
+        server_outgoing_msg_h.update(msg_payload_s)
 
         data = encryptor.enc + encryptor.seal(msg_payload_s)
 
@@ -174,27 +173,39 @@ class SiFT_INIT:
         
         # Parse and decrypt received Diffie Hellman information
         data_r = msg_payload_r[self.enc_size:]
-        enc = msg_payload_r[:self.enc_size]
+        enc_r = msg_payload_r[:self.enc_size]
 
         decryptor = HPKE.new(receiver_key=server_private_key,
                              aead_id=HPKE.AEAD.AES256_GCM,
-                             enc=enc)
+                             enc=enc_r)
 
         data = decryptor.unseal(data_r)
-
-        # Update hash of receieved messages with the first message (in cleartext)
-        incoming_msg_h.update(data)
 
         secret = self.derive_server_key(personal_priv_k=server_private_key, 
                                         peer_pub_k=client_public_key, 
                                         client_ID=self.client_ID, 
                                         server_ID= self.server_ID)
 
-        if data != secret:
-            raise SiFT_INIT_Error('Failed to establish shared secret')
+        # Update incoming hash with shared secret
+        server_incoming_msg_h.update(secret)
+        server_incoming_msg_h = server_incoming_msg_h.digest()
 
-        # TODO
-        # 
+        if server_incoming_msg_h != data:
+            raise SiFT_INIT_Error('Failed to establish shared secret')
+        
+        server_outgoing_msg_h.update(secret)
+        server_outgoing_msg_h = server_outgoing_msg_h.digest()
+
+        encryptor = HPKE.new(receiver_key=client_public_key,
+                             aead_id=HPKE.AEAD.AES256_GCM)
+
+        msg_payload_s = encryptor.enc + encryptor.seal(server_outgoing_msg_h)
+
+        # Send Finish Message with hash of outgoing values and the shared secret
+        try:
+            self.mtp.send_msg(self.mtp.type_init_res_1, msg_payload_s)
+        except SiFT_MTP_Error as e:
+            raise SiFT_INIT_Error('Unable to send PK1 response --> ' + e.err_msg)
         
         return secret
 
@@ -203,9 +214,9 @@ class SiFT_INIT:
         #TODO - save every received message body into a long running string, then take its hash at the very end
 
         # Initialize Ephemeral Key Information
-        client_private_key, client_public_key = self.generate_ephemeral_keypair()
+        self.client_private_key, client_public_key = self.generate_ephemeral_keypair()
         self.client_ID = get_random_bytes(self.id_size)
-        self.client_private_key = client_private_key
+        self.client_private_key = self.client_private_key
         self.client_public_key = client_public_key
 
         # Commence Initialization Requests
@@ -241,7 +252,7 @@ class SiFT_INIT:
         data_r = msg_payload_r[self.enc_size:]
         enc = msg_payload_r[:self.enc_size]
 
-        decryptor = HPKE.new(receiver_key=client_private_key,
+        decryptor = HPKE.new(receiver_key=self.client_private_key,
                              aead_id=HPKE.AEAD.AES256_GCM,
                              enc=enc)
 
@@ -279,20 +290,44 @@ class SiFT_INIT:
         encryptor = HPKE.new(receiver_key=self.server_public_key,
                      aead_id=HPKE.AEAD.AES256_GCM)
 
-        enc = encryptor.enc
-
-        print(len(secret))
+        enc_r = encryptor.enc
 
         # Update the outgoing hash with the shared secret
         self.client_outgoing_msg_h.update(secret)
         self.client_outgoing_msg_h = self.client_outgoing_msg_h.digest()
 
-        msg_payload_s = enc + encryptor.seal(secret)
+        msg_payload_s = enc_r + encryptor.seal(self.client_outgoing_msg_h)
 
+        # Send the Finish Message with the hash of the client's outgoing message and shared secret
         try:
             self.mtp.send_msg(self.mtp.type_init_req_1, msg_payload_s)
         except SiFT_MTP_Error as e:
             raise SiFT_INIT_Error('Unable to send PK1 request --> ' + e.err_msg)
+        
+
+        # Receive server Finish Message with its hash of its sent message and shared secret
+        try:
+            msg_type, msg_payload_r = self.mtp.receive_msg()
+        except SiFT_MTP_Error as e:
+            raise SiFT_INIT_Error('Unable to receive Server PK1 response --> ' + e.err_msg)
+        if msg_type != self.mtp.type_init_res_1:
+            raise SiFT_INIT_Error('Initialization response 1 expected, but received something else')
+
+        data_r = msg_payload_r[self.enc_size:]
+        enc = msg_payload_r[:self.enc_size]
+
+        decryptor = HPKE.new(receiver_key=self.client_private_key,
+                             aead_id=HPKE.AEAD.AES256_GCM,
+                             enc=enc)
+
+        data = decryptor.unseal(data_r)
+
+        self.client_incoming_msg_h.update(secret)
+        self.client_incoming_msg_h = self.client_incoming_msg_h.digest()
+
+        # If the message hashes are assymetric, indicating a problem establishing the shared secret or malicious interference, quit
+        if data != self.client_incoming_msg_h:
+            raise SiFT_INIT_Error('Finishing message hashes do not align')
 
 
         return secret

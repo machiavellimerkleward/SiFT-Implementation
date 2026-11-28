@@ -223,11 +223,13 @@ if __name__ == '__main__':
 
     # Establish shared secret with server
     try:
-        initp.initiate_session_client(response=response)
+        key = initp.initiate_session_client(response=response)
     except SiFT_INIT_Error as e:
         print('SiFT_INIT_Error: ' + e.err_msg )
         sys.exit(1)
-    
+
+    mtp.change_state_key(key)
+
     # Instantialize Login Protcol
     loginp = SiFT_LOGIN(mtp)
 
