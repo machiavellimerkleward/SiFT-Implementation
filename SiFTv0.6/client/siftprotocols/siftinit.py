@@ -36,10 +36,6 @@ class SiFT_INIT:
         self.client_ID = None
 
 
-# TODO QUESTIONS!
-    # TODO figure out how to verify the session ID information throughout
-    # TODO gather messages into one and cross-verify message hashes
-
     # Signs the SHA256 hash value of the server public key with its private key for exporting
     def signature(self, server_public_key, server_private_key, client_ID): 
         msg = client_ID + server_public_key
@@ -102,12 +98,7 @@ class SiFT_INIT:
         static_pub=peer_pub_k,
         kdf=kdf
         )
-
-
-    def inspect_init_hash():
-        # TODO - compile all message bodies into a large byte object, then take the 
-        return
-        
+    
 
     def initiate_session_server(self, server_public_key, server_private_key):
         server_outgoing_msg_h = SHA256.new()
@@ -207,11 +198,11 @@ class SiFT_INIT:
         except SiFT_MTP_Error as e:
             raise SiFT_INIT_Error('Unable to send PK1 response --> ' + e.err_msg)
         
+        
         return secret
 
 
     def pk_exchange_client(self):
-        #TODO - save every received message body into a long running string, then take its hash at the very end
 
         # Initialize Ephemeral Key Information
         self.client_private_key, client_public_key = self.generate_ephemeral_keypair()
@@ -328,6 +319,6 @@ class SiFT_INIT:
         # If the message hashes are assymetric, indicating a problem establishing the shared secret or malicious interference, quit
         if data != self.client_incoming_msg_h:
             raise SiFT_INIT_Error('Finishing message hashes do not align')
-
+        
 
         return secret

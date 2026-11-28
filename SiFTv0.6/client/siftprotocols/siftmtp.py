@@ -15,8 +15,8 @@ class SiFT_MTP:
 		self.DEBUG = False
 		# --------- CONSTANTS ------------
 		self.version_major = 0
-		self.version_minor = 6
-		self.msg_hdr_ver = b'\x00\x06'
+		self.version_minor = 7
+		self.msg_hdr_ver = b'\x00\x07'
 		self.size_msg_hdr = 16
 		self.size_msg_hdr_ver = 2
 		self.size_msg_hdr_typ = 2
@@ -46,8 +46,8 @@ class SiFT_MTP:
 		self.type_dnload_res_0 = b'\x03\x10'
 		self.type_dnload_res_1 = b'\x03\x11'
 		self.type_init_req_0 = b'\x04\x00'
-		self.type_init_res_0 = b'\x04\x10'
 		self.type_init_req_1 = b'\x04\x01'
+		self.type_init_res_0 = b'\x04\x10'
 		self.type_init_res_1 = b'\x04\x11'
 		self.msg_types = (self.type_login_req, self.type_login_res, 
 						  self.type_command_req, self.type_command_res,
