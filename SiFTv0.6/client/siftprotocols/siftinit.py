@@ -2,12 +2,13 @@ from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Random import get_random_bytes
 from Crypto.PublicKey import ECC
+from Crypto.Cipher import AES
+from Crypto.Signature import DSS
 from Crypto.Protocol.DH import key_agreement
 from Crypto.Protocol import HPKE
 from Crypto.Protocol.KDF import HKDF
 
 from siftprotocols.siftmtp import SiFT_MTP, SiFT_MTP_Error
-
 
 class SiFT_INIT_Error(Exception):
 
@@ -20,32 +21,49 @@ class SiFT_INIT:
 
         self.DEBUG = False
         # --------- CONSTANTS ------------
-        self.id_size = 8 #TODO check
+        self.id_size = 8
         self.enc_size = 65
+        self.signature_size = 64
         self.coding = 'utf-8'
         # --------- STATE ------------
         self.mtp = mtp
-        self.server_key = None
+        self.client_outgoing_msg_h = SHA256.new()
+        self.client_incoming_msg_h = SHA256.new()
+        self.server_public_key = None
         self.server_ID = None
         self.client_public_key = None
         self.client_private_key = None
         self.client_ID = None
 
 
-
 # TODO QUESTIONS!
-    # Ask where to verify sesson entity ID and ask about size
-    # What is the rsv field in the MTP? is it used in this version?
-    # Should the Client make its first request an ask for the Server's PK, then encrypt ALL subsequent info with it, instead of sending over its PK,ID immediately?
-    # Ask about what exactly should and shouldn't be encrypted -- public keys? IDs?
-    # How should the permenent server key be created/accessed? write to a file --> 
-    # Is it okay to write the server key to an init variable?
-    # Is the given hash value okay?
-
-
-    # TODO create/import helper functions
     # TODO figure out how to verify the session ID information throughout
     # TODO gather messages into one and cross-verify message hashes
+
+    # Signs the SHA256 hash value of the server public key with its private key for exporting
+    def signature(self, server_public_key, server_private_key, client_ID): 
+        msg = client_ID + server_public_key
+
+        h = SHA256.new()
+        h.update(msg)
+
+        signer = DSS.new(server_private_key, 'fips-186-3') # according to the FIPS 186-3 standard, the resulting signature will be randomized
+        signature = signer.sign(h)
+        return signature
+
+    # Uses the server's public key to validate a given message and signature
+    def signature_validation(self, msg, signature, serv_pub_key): 
+        h = SHA256.new()
+        h.update(msg)
+
+        verifier = DSS.new(serv_pub_key, 'fips-186-3')
+
+        try:
+            verifier.verify(h, signature)
+            print('Signature is valid.')
+        except ValueError:
+            raise SiFT_INIT_Error('Signature is invalid.')
+
 
     def generate_ephemeral_keypair(self):
         key = ECC.generate(curve='P-256')
@@ -86,9 +104,6 @@ class SiFT_INIT:
         kdf=kdf
         )
 
-    def replace_session_key():
-        # new_key = --> the derived session key, already in another method
-        return new_key
 
     def inspect_init_hash():
         # TODO - compile all message bodies into a large byte object, then take the 
@@ -96,8 +111,8 @@ class SiFT_INIT:
         
 
     def initiate_session_server(self, server_public_key, server_private_key):
-
-        #TODO - save every received message body into a long running string, then take its hash at the very end
+        outgoing_msg_h = SHA256.new()
+        incoming_msg_h = SHA256.new()
 
         # Try to Receive Initialization Request with Client Public Key and ID
         try:
@@ -114,18 +129,29 @@ class SiFT_INIT:
             print('------------------------------------------')
         # DEBUG 
 
+        # Update hash of receieved messages with the first message (in cleartext)
+        incoming_msg_h.update(msg_payload_r)
+        
+        # Parse client public key and client session ID
         client_public_key = ECC.import_key(msg_payload_r[:-self.id_size])
         self.client_ID = msg_payload_r[-self.id_size:]
 
-        # Encrypt server public key and ID with received client public key
+        # Encrypt server public key and ID with received client public key, and create a signature of server public key hash + client ID to ensure freshness
         encryptor = HPKE.new(receiver_key=client_public_key,
                      aead_id=HPKE.AEAD.AES256_GCM)
         self.server_ID = get_random_bytes(self.id_size)
 
-        msg_payload_s = server_public_key + self.server_ID
+        signature = self.signature(server_public_key=server_public_key, server_private_key=server_private_key, client_ID=self.client_ID)
+
+        # data = client ID + server PK  + signature (client ID + server PK) + server ID
+        msg_payload_s = self.client_ID + server_public_key + signature + self.server_ID
+
+        # Update hash of sent messages
+        outgoing_msg_h.update(msg_payload_s)
+
         data = encryptor.enc + encryptor.seal(msg_payload_s)
 
-        # Try to Send Public Key and ID
+        # Try to Send ID and Signed Public Key
         try:
             self.mtp.send_msg(self.mtp.type_init_res_0, data)
         except SiFT_MTP_Error as e:
@@ -146,6 +172,7 @@ class SiFT_INIT:
             print('------------------------------------------')
         # DEBUG 
         
+        # Parse and decrypt received Diffie Hellman information
         data_r = msg_payload_r[self.enc_size:]
         enc = msg_payload_r[:self.enc_size]
 
@@ -155,20 +182,21 @@ class SiFT_INIT:
 
         data = decryptor.unseal(data_r)
 
+        # Update hash of receieved messages with the first message (in cleartext)
+        incoming_msg_h.update(data)
+
         secret = self.derive_server_key(personal_priv_k=server_private_key, 
                                         peer_pub_k=client_public_key, 
                                         client_ID=self.client_ID, 
                                         server_ID= self.server_ID)
 
         if data != secret:
-            print('Failed to establish shared secret')
-        
+            raise SiFT_INIT_Error('Failed to establish shared secret')
 
-        # TODO FIX, duplicate statement
-        # if msg_type != self.mtp.type_init_req_1:
-            # raise SiFT_INIT_Error('Initialization request expected, but received something else')
+        # TODO
+        # 
         
-        # return new_key # ?
+        return secret
 
 
     def pk_exchange_client(self):
@@ -179,17 +207,13 @@ class SiFT_INIT:
         self.client_ID = get_random_bytes(self.id_size)
         self.client_private_key = client_private_key
         self.client_public_key = client_public_key
-        
-        # IF requesting server PK immediately
-        # try:
-        #     self.mtp.send_msg(self.mtp.type_init_req_0, public_k)
-        # except SiFT_MTP_Error as e:
-        #     raise SiFT_INIT_Error('Unable to send PK request --> ' + e.err_msg)
 
         # Commence Initialization Requests
 
         # First message to the server -- sends Client public key and Client session ID
         msg_payload_s = client_public_key + self.client_ID
+
+        self.client_outgoing_msg_h.update(msg_payload_s)
 
         # Send PK and ID to the server
         try:
@@ -211,9 +235,9 @@ class SiFT_INIT:
         if msg_type != self.mtp.type_init_res_0:
             raise SiFT_INIT_Error('Initialization response 0 expected, but received something else')
 
-        # self.server_key = ECC.import_key(msg_payload_r)
 
-        # Decrypt message and extract server PK and ID
+        # Decrypt message and extract server PK + client ID, fresh signature, and server ID
+
         data_r = msg_payload_r[self.enc_size:]
         enc = msg_payload_r[:self.enc_size]
 
@@ -221,17 +245,25 @@ class SiFT_INIT:
                              aead_id=HPKE.AEAD.AES256_GCM,
                              enc=enc)
 
+        # data = client ID + server PK  + signature (client ID + server PK) + server ID
         data = decryptor.unseal(data_r)
 
-        self.server_key = ECC.import_key(data[:-self.id_size])
-        self.server_ID = data[-self.id_size:]        
+        self.client_incoming_msg_h.update(data)
 
-        # TODO Offer hash of server PK to user to verify
+        msg = data[:-(self.id_size+self.signature_size)]
+        self.server_public_key = ECC.import_key(data[self.id_size:-(self.signature_size+self.id_size)]) # after first 8 bytes to last 64 + 8 bytes
+        self.signature = data[-(self.id_size+self.signature_size):-self.id_size] # last 64 + 8 bytes to last 8 bytes
+        self.server_ID = data[-self.id_size:] # last 8 bytes
 
-        pwdhash = SHA256.new(data[:-self.id_size])
-        pwdhash = pwdhash.hexdigest()
 
-        return pwdhash
+        # Validate the signature computed on the client ID and server public key
+        self.signature_validation(msg, self.signature, self.server_public_key)
+
+        # Offer hash of signed + verified received server PK bytes for user to verify
+        pubk_hash = SHA256.new(data[self.id_size:-(self.signature_size+self.id_size)])
+        pubk_hash = pubk_hash.digest().hex()
+
+        return pubk_hash
         
 
     def initiate_session_client(self, response):
@@ -240,14 +272,20 @@ class SiFT_INIT:
             raise SiFT_INIT_Error('Hash verification unable to proceed')
 
         secret = self.derive_client_key(personal_priv_k=self.client_private_key, 
-                                        peer_pub_k=self.server_key, 
+                                        peer_pub_k=self.server_public_key, 
                                         client_ID=self.client_ID, 
                                         server_ID=self.server_ID)
 
-        encryptor = HPKE.new(receiver_key=self.server_key,
+        encryptor = HPKE.new(receiver_key=self.server_public_key,
                      aead_id=HPKE.AEAD.AES256_GCM)
 
         enc = encryptor.enc
+
+        print(len(secret))
+
+        # Update the outgoing hash with the shared secret
+        self.client_outgoing_msg_h.update(secret)
+        self.client_outgoing_msg_h = self.client_outgoing_msg_h.digest()
 
         msg_payload_s = enc + encryptor.seal(secret)
 
@@ -256,9 +294,5 @@ class SiFT_INIT:
         except SiFT_MTP_Error as e:
             raise SiFT_INIT_Error('Unable to send PK1 request --> ' + e.err_msg)
 
-        # Declare the shared secret and encrypt with server PK
 
-        return
-
-        # self.mtp.
-        # return new_key # ?
+        return secret

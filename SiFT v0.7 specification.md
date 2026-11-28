@@ -13,7 +13,6 @@ TODO:
 (i) is accomplished through a standard shared secret establishment protocol. 
 - Assume initial 32-byte key of zeros, for the transfer of initial information encoded with public keys for the session key establishment
 - Client creates new emphemeral public/private key pair (and possible entity ID?)
-- TODO! Client does not need private/public key, just DH setup
 - Client sends establishing information to Server
     - EITHER encrypted with server PK -- PREV REQUEST -- OR unencrypted
     - Encrypted with the Server PK, the client sends their public key to the server (alongside their ID number?)
@@ -31,6 +30,10 @@ DONE!
     - Server selects random y and computes [math formula]
     - Server sends the C_PK encrypted (SID, server-half of math formula, KDF salting numbers) -- ask!
     - With both halves, each party computes s, the shared secret for the session
+
+- signature is signed on the hash of (pubk + client ID)
+- signed message sent as msg + signature + serverID
+- prevents malicious attacker from intercepting and sending the correct server signature
 
 
 TODO:
